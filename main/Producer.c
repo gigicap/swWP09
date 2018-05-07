@@ -11,21 +11,23 @@
 #include "V1485Configurator.h"
 
 circBuffer* pSharedBuffer;
-int handleV1742, handleDT5780, handleV1485;
+int handleV1742, handleDT5780, handleV1485, handleDT5743;
 DaqSharedMemory* pDaqSharedMemory;
-uint32_t pBufferSizeV1742, pAllocatedSizeV1742,pBufferSizeDT5780, pAllocatedSizeDT5780;
+uint32_t pBufferSizeV1742, pAllocatedSizeV1742,pBufferSizeDT5780, pAllocatedSizeDT5780, pBufferSizeDT5743, pAllocatedSizeDT5743;
 int err_code;
 char *pbufferV1742 = NULL;  
 char *pbufferDT5780 = NULL;  
+char *pbufferDT5743 = NULL;
 uint32_t *pbufferV1485;        // Memory buffer for blt
 uint32_t baseAddressV1485;     // Base Address
-int isCalo=0, isCompton=0;
+int isCalo=0, isCompton=0, isNRSS=0;
 char logFilename[100];
 
 double mytimestart, mytimestop;
 int isV1742=0;
 int isDT5780=0;
 int isV1485=0;
+int isDT5743=0;
 int isSoftwareTrigger=0;
 int isTestHpGe = 0;
 int  TrgCntV1742 = 0;
@@ -33,6 +35,7 @@ int  TrgCntAlfa = 0;
 int  TrgCntDT5780 = 0;
 int  TrgCntPamSi = 0;
 int  TrgCntGamma = 0;
+int  TrgCntNRSS = 0;
 char Device[10];
 
 void startDaqV1742() {
@@ -75,7 +78,25 @@ void startDaqDT5780() {
  
 }
 
+//NRSS
+void startDaqDT5743() {
+  // The slow control starter opens the connection to the DT5743 board, the handle is passed via the shared memory structure
+  err_code |= CAEN_DGTZ_OpenDigitizer(pDaqSharedMemory->connectionParamsDT5743[0],pDaqSharedMemory->connectionParamsDT5743[1],pDaqSharedMemory->connectionParamsDT5743[2] , pDaqSharedMemory->connectionParamsDT5743[3], &handleDT5743);
+  //handleDT5780 = pDaqSharedMemory->DT5780handle;
 
+  err_code |= CAEN_DGTZ_MallocReadoutBuffer(handleDT5743, &pbufferDT5743,&pAllocatedSizeDT5743);
+  err_code |= CAEN_DGTZ_ClearData(handleDT5743);
+  err_code |= CAEN_DGTZ_SWStartAcquisition(handleDT5743);
+  
+  if(!err_code) {
+    printf("\n%s Producer: acquisition started for board DT5743 %i \n",Device,err_code);
+  }
+  else {
+    printf("*** %s Producer: ERROR opening DT5743 device %i \n",Device,err_code);
+    exit(1);
+  }
+ 
+}
 
 void startDaqV1485() {
   if( CAENVME_Init(cvV2718,pDaqSharedMemory->connectionParamsV1485[0] , 0, &handleV1485) == cvSuccess ) 
@@ -116,6 +137,10 @@ void PrintStat() {
        printf("%s Producer: Trigger count HpGe: %i \n",Device,TrgCntDT5780);
        printf("%s Producer: Trigger Rate  HpGe: %f \n",Device,TrgCntDT5780/(mytimestop-mytimestart));
      }
+     if(isDT5743) {
+       printf("%s Producer: Trigger count NRSS: %i \n",Device,TrgCntNRSS);
+       printf("%s Producer: Trigger Rate  NRSS: %f \n",Device,TrgCntNRSS/(mytimestop-mytimestart));
+     }
      
      if(isV1485) {
        printf("%s Producer: Trigger count PamSi: %i \n",Device,TrgCntPamSi);
@@ -136,6 +161,7 @@ void UpdateLogFile() {
   TrgCntDT5780 = 0;
   TrgCntPamSi = 0;
   TrgCntGamma = 0;
+  TrgCntNRSS = 0;
 
   sprintf(logFilename,"Log/LogFile_Run%i",pDaqSharedMemory->runNumber);
   freopen (logFilename,"a",stdout);
@@ -168,6 +194,7 @@ int main(int argc, char **argv)  {
 	strcpy ((char *) Device, optarg);
 	if(strstr(Device, "GCAL")!=NULL) isCalo=1;
 	else if(strstr(Device, "CSPEC")!=NULL) isCompton=1;
+  else if(strstr(Device, "NRSS")!=NULL) isNRSS=1;
 	break;
       }
 
@@ -197,6 +224,9 @@ int main(int argc, char **argv)  {
   if(isDT5780) startDaqDT5780();
   if(isV1742 || isCalo) startDaqV1742();
   if(isV1485 || isTestHpGe) startDaqV1485();
+
+  if(isDT5743 || isNRSS) startDaqDT5743();
+
   fflush(stdout);
 
   mytimestart=getTime();
@@ -287,6 +317,7 @@ int main(int argc, char **argv)  {
         TrgCntDT5780++;
         pDaqSharedMemory->EventsProd[HpGe]++;
       } 
+
       else {
         if(isV1742) {
           printf("*** %s Producer: WARNING - timeout %i us waiting HpGe events \n",Device,timeoutDT5780*100);
@@ -295,6 +326,35 @@ int main(int argc, char **argv)  {
       }
     } // end DT5780 block
 
+ //DT5743 block
+
+    if(isDT5780) {
+    
+      if (isSoftwareTrigger) CAEN_DGTZ_SendSWtrigger(handleDT5743);
+
+      int nloop=0;
+      while(nloop<=timeoutDT5743) {
+        err_code = CAEN_DGTZ_ReadData(handleDT5743, CAEN_DGTZ_SLAVE_TERMINATED_READOUT_MBLT, pbufferDT5743, &pBufferSizeDT5743);
+        if(err_code!=0) {
+          printf("*** %s Producer: ERROR reading DT5780 data %i\n",Device,err_code);
+          fflush(stdout);
+        }
+        if(pBufferSizeDT5743 == 0) {
+          nloop++;
+          usleep(100);
+          if(pDaqSharedMemory->stopDAQ) break;
+        } 
+        else break;
+      }
+
+      if(nloop < timeoutDT5743) {
+        writeCircularBuffer(pSharedBuffer, (char*) &pDaqSharedMemory->NRSSStatus,4);
+        writeTimeStamp(pSharedBuffer);
+        writeCircularBuffer(pSharedBuffer, pbufferDT5743, pBufferSizeDT5743);
+        TrgCntNRSS++;
+        pDaqSharedMemory->EventsProd[NRSS]++;
+      } 
+    } // end DT5743 block
 
     if(isV1485) {
 
@@ -344,6 +404,8 @@ int main(int argc, char **argv)  {
   if(isV1742||isCalo) stopDaq(handleV1742);
   if(isDT5780) stopDaq(handleDT5780);
   if(isV1485) CAENVME_End(handleV1485);
+  if(isDT5743) stopDaq(handleDT5743);
+  
    //   CAEN_DGTZ_FreeReadoutBuffer(&pbufferV1742);
    //   CAEN_DGTZ_FreeReadoutBuffer(&pbufferDT5780);
 

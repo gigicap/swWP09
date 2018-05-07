@@ -25,6 +25,9 @@ typedef struct {
   int connectionParamsV1742BaF[4];
   int connectionParamsV1742Calo[4];
   int connectionParamsDT5780[4];
+  //NRSS
+  int connectionParamsDT5743[4];
+
   int connectionParamsV1485[2];
   int runNumber;
   int NumberOfEvents;
@@ -37,12 +40,14 @@ typedef struct {
   int isCaloPlotGroup;
   int isBaFPlotGroup;
   int AlfaScaler;
-  int EventsProd[5];
-  int EventsCons[5];
+  int EventsProd[6];
+  int EventsCons[6];
 
   uint32_t gcalStatus;
   uint32_t bafStatus;
   uint32_t hpgeStatus;
+  //NRSS
+  uint32_t NRSSStatus;
   uint32_t pamsiStatus;
 
 } DaqSharedMemory;

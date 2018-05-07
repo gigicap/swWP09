@@ -48,6 +48,7 @@ int main(int argc, char **argv)
       strcpy ((char *) Device, optarg);
       if(strstr(Device, "GCAL")!=NULL) isCalo=1;
       else if(strstr(Device, "CSPEC")!=NULL) isCompton=1;
+      else if(strstr(Device, "NRSS")!=NULL) isNRSS=1;
       break;
   }
 
@@ -67,7 +68,10 @@ int main(int argc, char **argv)
   cDaqSharedMemory=configDaqSharedMemory("Consumer");
 
   printf("\n%s Consumer:: Configuring SharedBuffer \n",Device);
-  if(isCompton) {
+  if(isNRSS){
+    cSharedBuffer=configSharedBuffer(keyNRSS);
+  }
+  else if(isCompton) {
     cSharedBuffer=configSharedBuffer(keyCompton);
     scalerAlfa=cDaqSharedMemory->AlfaScaler;
   } 
@@ -84,7 +88,11 @@ int main(int argc, char **argv)
     if(cDaqSharedMemory->stopDAQ) break;
 
     printf("\n%s Consumer: Resetting event counters \n",Device);
-    if(isCompton) {
+    if(isNRSS) {
+      RunConfig |= (0x1 << 7);              // OK O DEVO ALLUNGARE RUNCONFIG? 
+      cDaqSharedMemory->EventsCons[NRSS]=0; //RESETTO CONTATORI
+    }
+    else if(isCompton) {
       cDaqSharedMemory->EventsCons[BaFGamma]=0;
       cDaqSharedMemory->EventsCons[BaFAlfa]=0;
       cDaqSharedMemory->EventsCons[HpGe]=0;
@@ -152,7 +160,7 @@ int main(int argc, char **argv)
       fwrite (myRead, bufferSize+evtHeaderSize, 1, file);
 
       if(isCompton) {
-	chanMask = *(long *)(myRead+evtHeaderSize+caenHeaderSize) & 0x0000000F;
+	 chanMask = *(long *)(myRead+evtHeaderSize+caenHeaderSize) & 0x0000000F;
 	 boardId = *(long *)(myRead+evtHeaderSize+caenHeaderSize) & 0xF8000000;
 	if(boardId==DT5780Id) {
 	  cDaqSharedMemory->EventsCons[HpGe]++;
@@ -171,6 +179,8 @@ int main(int argc, char **argv)
 	}
       } else {  // is Calo
 	cDaqSharedMemory->EventsCons[Calo]++;
+      } else {  // is NRSS -- Mettere in coda? 
+  cDaqSharedMemory->EventsCons[NRSS]++;
       }
       free(myRead);
      
@@ -179,6 +189,7 @@ int main(int argc, char **argv)
     fclose(file);
 
     if(isCalo) printf("\n\n%s Consumer: written %i %s events to file %s \n",Device,cDaqSharedMemory->EventsCons[Calo],Device,fileName);
+    if(isNRSS) printf("\n\n%s Consumer: written %i %s events to file %s \n",Device,cDaqSharedMemory->EventsCons[NRSS],Device,fileName);
     
     if(isCompton) {
       printf("\n\n%s Consumer: written %i events to file %s \n",Device,
