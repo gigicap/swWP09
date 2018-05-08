@@ -7,12 +7,18 @@
 #include "CAENDigitizerType.h"
 
 #define MaxDT5743NChannels 8
-/*
+#define MaxDT5743Blocks 4
+
+
 typedef enum  {
-  ENABLED,
-  DISABLED,
+  SW,
+  NORMAL,
+  AUTO,
+  EXTERNAL,
 } TriggerModeDT5743;
-*/
+
+
+
 typedef struct
 {
   CAEN_DGTZ_ConnectionType LinkType;
@@ -26,13 +32,19 @@ typedef struct
   int ExtTrigger;
   uint8_t PosTrigger;
 
-  uint32_t GroupTrigger; //0x... 0=OR GRUPPO 1=AND GRUPPO
+  uint16_t TriggerLength;
+
+  TriggerModeDT5743 TriggerMode;   //SW, EXTERNAL, AUTO, NORMAL
+
+  uint32_t GroupTrigger;   //0x... 0=OR GRUPPO 1=AND GRUPPO
   uint32_t TriggerOut;    //AND OR MAJORITY  0 = OR , 1 = MAJ 1, 2 = MAJ 2, 3 = AND
 
 
   int DCOffset[MaxDT5743NChannels];
   int TriggerLevel[MaxDT5743NChannels];
-  uint32_t TrgMode[MaxDT5743NChannels];
+  uint32_t SelfTrigger[MaxDT5743NChannels];
+
+  //Charge mode --- do be implemented
   int Polarity[MaxDT5743NChannels];      //for charge mode
   int ChTres[MaxDT5743NChannels];
   int ChRefCell[MaxDT5743NChannels];

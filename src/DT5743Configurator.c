@@ -32,7 +32,10 @@ void WriteConfigFileDT5743(char* filename, DT5743Params_t *Params) {
   else if(Params->TriggerOut==0) fprintf(file,"TRIGGEROUT OR \n\n");
   else fprintf(file,"TRIGGEROUT %i \n\n",Params->TriggerOut);
 
+  fprintf(file,"TRIGGERGATE %i \n\n",Params->TriggerGate);
+
   fprintf(file,"GROUPMASK 0x%x \n\n",Params->GroupMask);
+
 
   int ch;
   for(ch=0;ch<MaxDT5743NChannels;ch++) {
@@ -143,6 +146,12 @@ int ParseConfigFileDT5743(char* filename, DT5780Params_t *Params) {
 	continue;
       }
 
+    else if (strstr(str, "TRIGGERGATE")!=NULL)
+    {
+      read = fscanf(file, "%i", &Params->TriggerGate);
+
+    }
+
 
   else if (strstr(str, "[CH0]")!=NULL) {
       ch=0;
@@ -217,9 +226,9 @@ int ParseConfigFileDT5743(char* filename, DT5780Params_t *Params) {
       {
   read = fscanf(file, "%s", str1 );
   if (strcmp(str1, "ENABLE")==0)
-    Params->SelfTrigger[ch] = 0x0000000;
+    Params->SelfTrigger[ch] = 0x1;
   else if (strcmp(str1, "DISABLE")==0)
-    Params->SelfTrigger[ch] = 0x1000000;
+    Params->SelfTrigger[ch] = 0x0;
   if(verbose) printf("Ch%i: Self Trigger  %s \n",ch, str1 );
   continue;
       }
@@ -259,11 +268,6 @@ int  ProgramDigitizerDT5743(int connectionParams[4], char* filename) {
   CAEN_DGTZ_BoardInfo_t           BoardInfo;
   int MajorNumber;
   int ret=0, handle;
-  uint32_t InputRangeRegister[2]={0x10B4,0x11B4};
-  uint32_t InputRangeValues[4]={0x5,0x6,0x9,0xA};
-  uint32_t TriggerModeRegister[2]={0x1080,0x1180};
-  uint32_t TriggerModeMask= 0xC0000;
-  uint32_t TriggerModeValues[3]={0x00000,0x80000,0xC0000};
 
   //Set to 0 
   memset(&Params, 0, sizeof(DT5743Params_t));
@@ -315,13 +319,9 @@ int  ProgramDigitizerDT5743(int connectionParams[4], char* filename) {
       return -1;
   }
 
-//???????????
-  ret |= CAEN_DGTZ_WriteRegister(handle, 0x8000, 0x01040114);  // This register contains general settings for the board configuration.
-  ret |= CAEN_DGTZ_WriteRegister(handle, 0x811C, 0xC003C);  // This register manages the front panel I/O connectors
-  // ret |= CAEN_DGTZ_WriteRegister(handle, 0x811C, 0x801);  // This register manages the front panel I/O connectors
-
 
   // Set the digitizer acquisition mode (CAEN_DGTZ_SW_CONTROLLED or CAEN_DGTZ_S_IN_CONTROLLED)
+  // Not programmable via configuration file
   ret |= CAEN_DGTZ_SetAcquisitionMode(handle, CAEN_DGTZ_SW_CONTROLLED);
     
   // Set the number of samples for each waveform
@@ -331,8 +331,9 @@ int  ProgramDigitizerDT5743(int connectionParams[4], char* filename) {
   // Set the I/O level (CAEN_DGTZ_IOLevel_NIM or CAEN_DGTZ_IOLevel_TTL)
   ret |= CAEN_DGTZ_SetIOLevel(handle, Params.IOLevel);
 
-//??????
-  CAEN_DGTZ_WriteRegister(handle, 0xEF08, 0x1C);  // Board id set to 1C (=11100)
+  // This function enables/disables the groups for the acquisition. Disabled channels don’t give any trigger and don’t participate to the event data.
+  ret |= CAEN_DGTZ_SetGroupEnableMask(handle, Params.GroupMask);
+
 
   /* Set the digitizer's behaviour when an external trigger arrives:
     CAEN_DGTZ_TRGMODE_DISABLED: do nothing
@@ -342,14 +343,13 @@ int  ProgramDigitizerDT5743(int connectionParams[4], char* filename) {
   */
   ret |= CAEN_DGTZ_SetExtTriggerInputMode(handle, CAEN_DGTZ_TRGMODE_ACQ_AND_EXTOUT);
 
-  // This function enables/disables the groups for the acquisition. Disabled channels don’t give any trigger and don’t participate to the event data.
-  ret |= CAEN_DGTZ_SetGroupEnableMask(handle, Params.ChannelMask);
-
+  
   // Set how many events to accumulate in the board memory before being available for readout
   ret |= CAEN_DGTZ_SetMaxNumEventsBLT(handle,Params.MaxEventsBlt);
 
 
-//SI PUO' FARE ANCHE CANALE PER CANALE 
+ uint32_t chmask = 0x0000;
+//PER CHANNEL
   for(i=0; i<MaxDT5743NChannels; i++) {
     int gr_i = i/2;
     if(Params.GroupMask & (1<<gr_i)) {
@@ -357,47 +357,36 @@ int  ProgramDigitizerDT5743(int connectionParams[4], char* filename) {
 
       // Set the Post-Trigger size (in samples)
       ret |= CAEN_DGTZ_SetSAMPostTriggerSize(handle, gr_i, Params.PosTrigger);
-
       // Set a DC offset to the input signal to adapt it to digitizer's dynamic range 
       ret |= CAEN_DGTZ_SetChannelDCOffset(handle, i, Params.DCOffset[i]);
  
-      // printf("TriggerModeRegister %x,TriggerModeValues %x,TriggerModeMask %x \n",TriggerModeRegister[i],TriggerModeValues[TrgMode[i]],TriggerModeMask);
-      ret |= WriteRegisterBitmask(handle, TriggerModeRegister[i],TriggerModeValues[Params.TrgMode[i]],TriggerModeMask);
-      ret |= WriteRegisterBitmask(handle, TriggerModeRegister[i],Params.SelfTrigger[i],0x1000000);
+      // channel autotrigger
+      chmask =+ Params.SelfTrigger[i]<<i;
     }
   }
+  ret |= CAEN_DGTZ_SetChannelSelfTrigger(handle, CAEN_DGTZ_TRGMODE_ACQ_ONLY, chmask);
 
 
 //sostituire con TestPattern
 
-  ret |= CAEN_DGTZ_SetDPP_VirtualProbe(handle, ANALOG_TRACE_1, CAEN_DGTZ_DPP_VIRTUALPROBE_Trapezoid);
-  ret |= CAEN_DGTZ_SetDPP_VirtualProbe(handle, ANALOG_TRACE_2, CAEN_DGTZ_DPP_VIRTUALPROBE_Input);
-  ret |= CAEN_DGTZ_SetDPP_VirtualProbe(handle, DIGITAL_TRACE_2,CAEN_DGTZ_DPP_DIGITALPROBE_Trigger );
-  ret |= CAEN_DGTZ_SetDPP_VirtualProbe(handle, DIGITAL_TRACE_1,CAEN_DGTZ_DPP_DIGITALPROBE_Peaking );
+//trigger between channels
+  int j;
 
-  // Enable propagation of individual trigger   
-  ret |= WriteRegisterBitmask(handle, 0x8000, 0x4, 0x4);
+  for (j = 0; j < MaxDT5743Blocks; ++j)
+  {
+    CAEN_DGTZ_TriggerLogic_t pairLogic;
+  
+    uint32_t pairmask = 0x0000;
+    pairmask |= 1<<j;
+    if(pairmask == (pairmask&Params.TriggerPairLogic)) pairLogic = 1;
+    else pairLogic = 0;
+    ret |= CAEN_DGTZ_SetChannelPairTriggerLogic(handle, j*2, j*2+1, pairLogic, Params.TriggerGate);
+  }
 
-
-
-  // Enable trigger out AND o OR between channels
-  ret |= CAEN_DGTZ_WriteRegister(handle, 0x8110,Params.TriggerOut); 
-  ret |= WriteRegisterBitmask(handle, 0x817C,Params.ExtTrigger,0x1);
-  //    ret |= WriteRegisterBitmask(handle, 0x817C,0x0,0x1); // enable ext trigger ATTENZIONE: 0->enable 1->disable
-  //    ret |= WriteRegisterBitmask(handle, 0x1080,0x1000000,0x1000000); // disable(=1)/enable(=0) acquisition on self trigger
-  //    ret |= WriteRegisterBitmask(handle, 0x1080,0x0000000,0x1000000); // disable(=1)/enable(=0) acquisition on self trigger
-
-  // disable(=0)/enable(=1) energy evaluation also for piled-up events
-  ret |= WriteRegisterBitmask(handle, 0x1080,0x1000000,0x8000000);
+//global trigger logic
+  ret |= CAEN_DGTZ_SetTriggerLogic(handle, globalLogic, majorityLevel);
 
 
-  ret |= WriteRegisterBitmask(handle, 0x1184, 0xFF, 0xFF);// gate (x10ns)
-  ret |= WriteRegisterBitmask(handle, 0x1084, 0xFF, 0xFF);// gate (x10ns)
-  ret |= WriteRegisterBitmask(handle, 0x8188, 0x4000010C, 0xFFFFFFFF);// 
-  ret |= WriteRegisterBitmask(handle, 0x818C, 0xC000010C, 0xFFFFFFFF);// 
-  //    ret |= WriteRegisterBitmask(handle, 0x818C, 0x10C, 0xFFFFFFFF);
-  //    ret |= WriteRegisterBitmask(handle, 0x818C, 0x10C, 0xFFFFFFFF); // se non setto 818C allora salvo solo il canale 0 (ma solo quando ho la coincidenza tra i due)
- 
   ret |= CAEN_DGTZ_CloseDigitizer(handle);
 
   if(ret) {
