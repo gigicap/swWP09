@@ -5,7 +5,7 @@
 #define verbose 0
 
 /*************************************************************************************************************/
-void WriteConfigFileDT5743(char* filename, DT5743Params_t *Params) {
+void WriteConfigFileDT5743(char* filename, DT5743Params_t *Params, CAEN_DGTZ_DPP_X743_Params_t *DT5743_DPP_Params) {
 /*************************************************************************************************************/
   
   FILE* file = fopen(filename,"w");
@@ -25,14 +25,20 @@ void WriteConfigFileDT5743(char* filename, DT5743Params_t *Params) {
   if(Params->IOLevel == 0) fprintf(file,"IOLEVEL NIM \n\n");
   else fprintf(file,"IOLEVEL TTL \n\n");
 
-  if(Params->ExtTrigger==0) fprintf(file,"EXTTRIGGER ENABLE \n\n");
-  else fprintf(file,"EXTTRIGGER DISABLE \n\n");
+  if(Params->TriggerMode==0) fprintf(file,"EXTTRIGGER SW \n\n");
+  else if(Params->TriggerMode==1) fprintf(file,"EXTTRIGGER NORMAL \n\n");
+  else if(Params->TriggerMode==2) fprintf(file,"EXTTRIGGER AUTO \n\n");
+  else fprintf(file,"EXTTRIGGER EXTERNAL \n\n");
 
-  if(Params->TriggerOut==3) fprintf(file,"TRIGGEROUT AND \n\n");
-  else if(Params->TriggerOut==0) fprintf(file,"TRIGGEROUT OR \n\n");
+  if(Params->TriggerOut==0) fprintf(file,"TRIGGEROUT NO \n\n");
+  else if(Params->TriggerOut==1) fprintf(file,"TRIGGEROUT YES \n\n");
   else fprintf(file,"TRIGGEROUT %i \n\n",Params->TriggerOut);
 
   fprintf(file,"TRIGGERGATE %i \n\n",Params->TriggerGate);
+
+  fprintf(file,"TRIGGERPAIRLOGIC 0x%x \n\n",Params->TriggerPairLogic);
+
+  fprintf(file,"GLOBALTRIGGERLOGIC %i \n\n",Params->GlobalTriggerLogic);
 
   fprintf(file,"GROUPMASK 0x%x \n\n",Params->GroupMask);
 
@@ -46,9 +52,9 @@ void WriteConfigFileDT5743(char* filename, DT5743Params_t *Params) {
       fprintf(file,"TRIGGERTHRESHOLD %i \n\n",Params->TriggerLevel[ch]);
       if(Params->Polarity[ch] == 0) fprintf(file, "POLARITY NEGATIVE\n\n", );
       else fprintf(file, "POLARITY POSITIVE\n\n", );
-      fprintf(file, "CH_TRES %i \n\n", Params->ChTres[ch]);
-      fprintf(file, "CH_REF_CELL %i \n\n", Params->ChRefCell[ch]);
-      fprintf(file, "CH_LENGTH %i \n\n", Params->ChLength[ch]);
+      fprintf(file, "CH_THRES %i \n\n", DT5743_DPP_Params->chargeThreshold[ch]);
+      fprintf(file, "CH_REF_CELL %i \n\n", DT5743_DPP_Params->startCell[ch]);
+      fprintf(file, "CH_LENGTH %i \n\n", DT5743_DPP_Params->chargeLength[ch]);
             
 
   }
@@ -56,7 +62,7 @@ void WriteConfigFileDT5743(char* filename, DT5743Params_t *Params) {
 }
 
 /*************************************************************************************************************/
-int ParseConfigFileDT5743(char* filename, DT5780Params_t *Params) {
+int ParseConfigFileDT5743(char* filename, DT5780Params_t *Params, CAEN_DGTZ_DPP_X743_Params_t *DT5743_DPP_Params) {
 /*************************************************************************************************************/
   FILE* file = fopen(filename,"r");
 

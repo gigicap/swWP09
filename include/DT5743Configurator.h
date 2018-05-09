@@ -29,31 +29,27 @@ typedef struct
   int TestPattern;
   int AcqMode;   //cambiare in charge-wave mode
   CAEN_DGTZ_IOLevel_t IOLevel;
-  int ExtTrigger;
+
   uint8_t PosTrigger;
 
   uint16_t TriggerLength;
 
   TriggerModeDT5743 TriggerMode;   //SW, EXTERNAL, AUTO, NORMAL
 
-  uint32_t GroupTrigger;   //0x... 0=OR GRUPPO 1=AND GRUPPO
-  uint32_t TriggerOut;    //AND OR MAJORITY  0 = OR , 1 = MAJ 1, 2 = MAJ 2, 3 = AND
+  uint32_t TriggerPairLogic;   //0x... 0=OR GRUPPO 1=AND GRUPPO
+  int GlobalTriggerLogic;     //AND OR MAJORITY  0 = OR , 1 = MAJ 1, 2 = MAJ 2, 3 = AND
 
+  int TriggerOut;
 
   int DCOffset[MaxDT5743NChannels];
   int TriggerLevel[MaxDT5743NChannels];
   uint32_t SelfTrigger[MaxDT5743NChannels];
 
-  //Charge mode --- do be implemented
-  int Polarity[MaxDT5743NChannels];      //for charge mode
-  int ChTres[MaxDT5743NChannels];
-  int ChRefCell[MaxDT5743NChannels];
-  int ChLength[MaxDT5743NChannels];
-
 } DT5743Params_t;
 
-int ParseConfigFileDT5743(char* filename, DT5743Params_t *Params);
-void WriteConfigFileDT5743(char* filename, DT5743Params_t *Params);
+
+int ParseConfigFileDT5743(char* filename, DT5743Params_t *Params, CAEN_DGTZ_DPP_X743_Params_t *DT5743_DPP_Params);
+void WriteConfigFileDT5743(char* filename, DT5743Params_t *Params, CAEN_DGTZ_DPP_X743_Params_t *DT5743_DPP_Params);
 
 int  ProgramDigitizerDT5743(int connectionParams[4], char* filename);
 
