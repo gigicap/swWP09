@@ -328,7 +328,7 @@ int main(int argc, char **argv)  {
 
  //DT5743 block
 
-    if(isDT5780) {
+    if(isDT5743) {
     
       if (isSoftwareTrigger) CAEN_DGTZ_SendSWtrigger(handleDT5743);
 
@@ -336,7 +336,7 @@ int main(int argc, char **argv)  {
       while(nloop<=timeoutDT5743) {
         err_code = CAEN_DGTZ_ReadData(handleDT5743, CAEN_DGTZ_SLAVE_TERMINATED_READOUT_MBLT, pbufferDT5743, &pBufferSizeDT5743);
         if(err_code!=0) {
-          printf("*** %s Producer: ERROR reading DT5780 data %i\n",Device,err_code);
+          printf("*** %s Producer: ERROR reading DT5743 data %i\n",Device,err_code);
           fflush(stdout);
         }
         if(pBufferSizeDT5743 == 0) {

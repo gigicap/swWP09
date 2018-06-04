@@ -127,6 +127,7 @@ int main(int argc, char **argv) {
   uint32_t runNumber=*(uint32_t *)(runnumber);
   printf("tupleMakerCSPEC: building events for run %i \n",runNumber);
   
+    
   char rootFile[30],rn[10];
   strcpy(rootFile,"Run");
   sprintf(rn,"%i",runNumber);
@@ -141,7 +142,9 @@ int main(int argc, char **argv) {
   }
   uint32_t runConfig=*(uint32_t *)(runconfig);
   deviceConfig=DecodeHeader(runConfig);   
-
+//
+    
+    
   CSPECTree* myAlpha;
   if(runConfig & (0x1 << 0)) {
     myEvt->switchOnBranches("BaF");
